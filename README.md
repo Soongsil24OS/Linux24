@@ -1,1 +1,1 @@
-# Rinux24
+# Linux24
