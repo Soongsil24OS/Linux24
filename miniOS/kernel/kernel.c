@@ -5,6 +5,8 @@
 #include <readline/history.h>
 
 #include "system.h"
+#include "/Users/gimminseog/Desktop/24OSTeamProject/Linux24/miniOS/kernel/ttop/test.c"
+
 void print_minios(char* str);
 
 int main() {
@@ -22,6 +24,10 @@ int main() {
 
         if (strcmp(input,"minisystem") == 0){
             minisystem();
+        }
+        
+        else if (strcmp(input,"ttop3") == 0){
+            test();
         }
         else system(input);
     }

@@ -1,15 +1,16 @@
 # Compiler and Compiler Flags
 CC=gcc
 CFLAGS=-Wall -g -Iinclude
+
 # Linker flags
-LDFLAGS=-lreadline
+LDFLAGS=-lreadline -lncurses
 
 # The build target executable:
 TARGET=minios
 
 # Source, Object files
-SRCS=kernel/kernel.c kernel/system.c
-OBJS=$(SRCS:.c=.o) 
+SRCS=kernel/kernel.c kernel/system.c kernel/ttop/test.c
+OBJS=$(SRCS:.c=.o)
 
 # Include directory
 INCLUDE_DIR=include
