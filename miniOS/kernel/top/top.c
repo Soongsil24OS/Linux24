@@ -1,51 +1,4 @@
-#include <stdio.h>
-#include <string.h>
-#include <math.h> // isnan 사용하기 위해 include
-#include <ctype.h> // isdigit 사용하기 위해 include
-#include <curses.h> // mvprintw 사용하기 위해 include
-#include <unistd.h> // hertz 구하기 위해 include
-#define MEM_ROW 3	
-/* --------------------header.h--------------start */
-/* 3행 */
-#define CPUSTAT "/proc/stat" 
-#define CPUTicks 8
-#define BUFFER_SIZE 1024
-#define CPU_ROW 2				// TUI) cpu 출력할 2행
-unsigned long uptime;			//os 부팅 후 지난 시간
-unsigned long beforeUptime = 0;	//이전 실행 시의 os 부팅 후 지난 시각
-unsigned long memTotal;			//전체 물리 메모리 크기
-unsigned int hertz;	 			//os의 hertz값 얻기(초당 context switching 횟수)
-long double beforeTicks[CPUTicks] = {0, };	//이전의 cpu ticks 저장하기 위한 배열
-/* 4,5 행*/
-#define MEMINFO "/proc/meminfo"		// /proc/meminfo 절대 경로, header.h
-// /proc/meminfo 에서의 ROW
-#define MEMINFO_MEM_TOTAL 1
-#define MEMINFO_MEM_FREE 2
-#define MEMINFO_MEM_AVAILABLE 3
-#define MEMINFO_BUFFERS 4
-#define MEMINFO_CACHED 5
-/* --------------------header.h----------------end */
-
-#define UPTIME "/proc/uptime"		// /proc/uptime 절대 경로
-unsigned long get_uptime(void)
-{
-    FILE *fp;
-    char buf[BUFFER_SIZE];
-    long double time;
-
-	memset(buf, '\0', BUFFER_SIZE);
-
-    if ((fp = fopen(UPTIME, "r")) == NULL){	// /proc/uptime open
-		fprintf(stderr, "fopen error for %s\n", UPTIME);
-        exit(1);
-    }
-    fgets(buf, BUFFER_SIZE, fp);
-    sscanf(buf, "%Lf", &time);	// /proc/uptime의 첫번째 double 읽기
-    fclose(fp);
-
-    return (unsigned long)time;
-}
-
+#include "topsource.h"
 
 /* --------------------printtop()--------------start */
 void print_top(void){
@@ -53,9 +6,6 @@ void print_top(void){
     hertz = (unsigned int)sysconf(_SC_CLK_TCK);	//os의 hertz값 얻기(초당 context switching 횟수)
     char buffer[BUFFER_SIZE]; // 0행
     uptime = get_uptime();
-
-
-
 
     /* 3행-------------------------------------------------------------------------- */
     char * CPUptr;
@@ -102,7 +52,7 @@ void print_top(void){
         }
     }
 
-	mvprintw(CPU_ROW, 0, "%%Cpu(s):  %4.1Lf us, %4.1Lf sy, %4.1Lf ni, %4.1Lf id, %4.1Lf wa, %4.1Lf hi, %4.1Lf si, %4.1Lf st",
+	mvprintw(CPU_row, 0, "%%Cpu(s):  %4.1Lf us, %4.1Lf sy, %4.1Lf ni, %4.1Lf id, %4.1Lf wa, %4.1Lf hi, %4.1Lf si, %4.1Lf st",
     results[0], results[2], results[1], results[3], results[4], results[5], results[6], results[7]);
 
 	beforeUptime = uptime;
@@ -122,65 +72,55 @@ void print_top(void){
 
     int i = 0;
     /* ---------------------------------------------------------------------------- */
-    while(i < MEMINFO_MEM_TOTAL){
-        memset(buffer, '\0', BUFFER_SIZE);
-        fgets(buffer, BUFFER_SIZE, meminfoFP);
-        i++;
-    }
+    memset(buffer, '\0', BUFFER_SIZE);
+    fgets(buffer, BUFFER_SIZE, meminfoFP);
+    i++;
+
     MEMptr = buffer;
     while(!isdigit(*MEMptr)){
-        MEMptr++;
-    }
+        MEMptr++;}
     sscanf(MEMptr, "%lu", & memTotal);
     /* ---------------------------------------------------------------------------- */
-    while(i < MEMINFO_MEM_FREE){
-        memset(buffer, '\0', BUFFER_SIZE);
-        fgets(buffer, BUFFER_SIZE, meminfoFP);
-        i++;
-    }
+    memset(buffer, '\0', BUFFER_SIZE);
+    fgets(buffer, BUFFER_SIZE, meminfoFP);
+    i++;
+
     MEMptr = buffer;
     while(!isdigit(*MEMptr)){
-        MEMptr++;
-    }
+        MEMptr++;}
     sscanf(MEMptr, "%lu", & memFree);
     /* ---------------------------------------------------------------------------- */
-    while(i < MEMINFO_MEM_AVAILABLE){
-        memset(buffer, '\0', BUFFER_SIZE);
-        fgets(buffer, BUFFER_SIZE, meminfoFP);
-        i++;
-    }
+    memset(buffer, '\0', BUFFER_SIZE);
+    fgets(buffer, BUFFER_SIZE, meminfoFP);
+    i++;
+
     MEMptr = buffer;
     while(!isdigit(*MEMptr)){
-        MEMptr++;
-    }
+        MEMptr++;}
     sscanf(MEMptr, "%lu", & memAvailable);
     /* ---------------------------------------------------------------------------- */
-    while(i < MEMINFO_BUFFERS){
-        memset(buffer, '\0', BUFFER_SIZE);
-        fgets(buffer, BUFFER_SIZE, meminfoFP);
-        i++;
-    }
+    memset(buffer, '\0', BUFFER_SIZE);
+    fgets(buffer, BUFFER_SIZE, meminfoFP);
+    i++;
+
     MEMptr = buffer;
     while(!isdigit(*MEMptr)){
-        MEMptr++;
-    }
+        MEMptr++;}
     sscanf(MEMptr, "%lu",& buffers);
     /* ---------------------------------------------------------------------------- */
-	while(i < MEMINFO_CACHED){
-		memset(buffer, '\0', BUFFER_SIZE);
-    	fgets(buffer, BUFFER_SIZE, meminfoFP);
-		i++;
-	}
+    memset(buffer, '\0', BUFFER_SIZE);
+    fgets(buffer, BUFFER_SIZE, meminfoFP);
+    i++;
+
 	MEMptr = buffer;
 	while(!isdigit(*MEMptr)){
-        MEMptr++;
-    }
+        MEMptr++;}
     sscanf(MEMptr, "%lu", & cached);
     /* ---------------------------------------------------------------------------- */
 
     memUsed = memTotal - memFree - buffers - cached; // 사용 메모리 구하기
 
-    mvprintw(MEM_ROW, 0, "Kib Mem : %8lu total,  %8lu free,  %8lu used,  %8lu buff/cache", memTotal, memFree, memUsed, buffers+cached); // 출력
+    mvprintw(MEM_row, 0, "Kib Mem : %8lu total,  %8lu free,  %8lu used,  %8lu buff/cache", memTotal, memFree, memUsed, buffers+cached); // 출력
 
     fclose(meminfoFP);
 /* --------------------printtop()----------------end */
