@@ -1,4 +1,4 @@
-#include "topsource.h"
+#include "top.h"
 
 unsigned long get_uptime(void)
 {
