@@ -8,7 +8,7 @@ int procCnt = 0;
 
 // 시스템 시작부터의 업타임을 가져오는 함수
 unsigned long get_uptime(void) {
-    FILE *fp;
+    FILE* fp;
     char buf[BUFFER_SIZE];
     long double time;
 
@@ -26,34 +26,34 @@ unsigned long get_uptime(void) {
 }
 
 //proc의 내용을 지우는 함수
-void erase_proc(myProc *proc)
+void erase_proc(myProc* proc)
 {
-	proc->pid = 0;
-	proc->uid = 0;
-	memset(proc->user, '\0', UNAME_LEN);
-	proc->cpu = 0.0;
-	proc->mem = 0.0;
-	proc->vsz = 0;
-	proc->rss = 0;
-	proc->shr = 0;
-	proc->priority = 0;
-	proc->nice = 0;
-	memset(proc->tty, '\0', TTY_LEN);
-	memset(proc->stat, '\0', STAT_LEN);
-	memset(proc->start, '\0', TIME_LEN);
-	memset(proc->time, '\0', TIME_LEN);
-	memset(proc->cmd, '\0', CMD_LEN);
-	memset(proc->command, '\0', CMD_LEN);
-	return;
+    proc->pid = 0;
+    proc->uid = 0;
+    memset(proc->user, '\0', UNAME_LEN);
+    proc->cpu = 0.0;
+    proc->mem = 0.0;
+    proc->vsz = 0;
+    proc->rss = 0;
+    proc->shr = 0;
+    proc->priority = 0;
+    proc->nice = 0;
+    memset(proc->tty, '\0', TTY_LEN);
+    memset(proc->stat, '\0', STAT_LEN);
+    memset(proc->start, '\0', TIME_LEN);
+    memset(proc->time, '\0', TIME_LEN);
+    memset(proc->cmd, '\0', CMD_LEN);
+    memset(proc->command, '\0', CMD_LEN);
+    return;
 }
 
 // procList 내용 지우는 함수
 void erase_proc_list(void)
 {
-	for(int i = 0; i < procCnt; i++)
-		erase_proc(procList + i);
-	procCnt = 0;
-	return;
+    for (int i = 0; i < procCnt; i++)
+        erase_proc(procList + i);
+    procCnt = 0;
+    return;
 }
 
 void add_proc_list(char path[1024], unsigned long cpuTimeTable[999999]) {
@@ -72,7 +72,7 @@ void add_proc_list(char path[1024], unsigned long cpuTimeTable[999999]) {
         fprintf(stderr, "access error for %s\n", statPath);
         return;
     }
-    FILE *statFp;
+    FILE* statFp;
     if ((statFp = fopen(statPath, "r")) == NULL) {
         sleep(1);
         return;
@@ -95,7 +95,7 @@ void add_proc_list(char path[1024], unsigned long cpuTimeTable[999999]) {
         fprintf(stderr, "access error for %s\n", statusPath);
         return;
     }
-    FILE *statusFp;
+    FILE* statusFp;
     if ((statusFp = fopen(statusPath, "r")) == NULL) {
         sleep(1);
         return;
@@ -107,11 +107,12 @@ void add_proc_list(char path[1024], unsigned long cpuTimeTable[999999]) {
             unsigned long uid;
             sscanf(line, "Uid:\t%lu", &uid);
             proc.uid = uid;
-            struct passwd *pw = getpwuid(uid);
+            struct passwd* pw = getpwuid(uid);
             if (pw) {
                 strncpy(proc.user, pw->pw_name, UNAME_LEN - 1);
                 proc.user[UNAME_LEN - 1] = '\0'; // Ensure null-termination
-            } else {
+            }
+            else {
                 strncpy(proc.user, "unknown", UNAME_LEN - 1);
                 proc.user[UNAME_LEN - 1] = '\0'; // Ensure null-termination
             }
@@ -136,7 +137,8 @@ void add_proc_list(char path[1024], unsigned long cpuTimeTable[999999]) {
 
     if (cpuUsage < 0 || cpuUsage > 100) {
         proc.cpu = 0;
-    } else {
+    }
+    else {
         proc.cpu = roundl(cpuUsage * 100) / 100.0; // 소수점 2자리 반올림
     }
 
@@ -146,11 +148,14 @@ void add_proc_list(char path[1024], unsigned long cpuTimeTable[999999]) {
         while (fgets(line, sizeof(line), statusFp)) {
             if (strncmp(line, "VmSize:", 7) == 0) {
                 sscanf(line, "VmSize:\t%lu", &vsz);
-            } else if (strncmp(line, "VmRSS:", 6) == 0) {
+            }
+            else if (strncmp(line, "VmRSS:", 6) == 0) {
                 sscanf(line, "VmRSS:\t%lu", &rss);
-            } else if (strncmp(line, "RssShmem:", 9) == 0) {
+            }
+            else if (strncmp(line, "RssShmem:", 9) == 0) {
                 sscanf(line, "RssShmem:\t%lu", &shr);
-            } else if (strncmp(line, "VmLck:", 6) == 0) {
+            }
+            else if (strncmp(line, "VmLck:", 6) == 0) {
                 sscanf(line, "VmLck:\t%lu", &vmLck);
             }
         }
@@ -164,7 +169,8 @@ void add_proc_list(char path[1024], unsigned long cpuTimeTable[999999]) {
     long double memUsage = (long double)rss / sysInfo.totalram * 100.0;
     if (memUsage < 0 || memUsage > 100) {
         proc.mem = 0;
-    } else {
+    }
+    else {
         proc.mem = roundl(memUsage * 100) / 100.0; // 소수점 2자리 반올림
     }
 
@@ -174,21 +180,24 @@ void add_proc_list(char path[1024], unsigned long cpuTimeTable[999999]) {
 
     // START 획득
     unsigned long start = time(NULL) - uptime + (startTime / Hertz);
-    struct tm *tmStart = localtime(&start);
+    struct tm* tmStart = localtime(&start);
     if (time(NULL) - start < 24 * 60 * 60) {
         strftime(proc.start, TIME_LEN, "%H:%M", tmStart);
-    } else if (time(NULL) - start < 7 * 24 * 60 * 60) {
+    }
+    else if (time(NULL) - start < 7 * 24 * 60 * 60) {
         strftime(proc.start, TIME_LEN, "%b %d", tmStart);
-    } else {
+    }
+    else {
         strftime(proc.start, TIME_LEN, "%y", tmStart);
     }
 
     // TIME 획득
     unsigned long cpuTime = totalTime / Hertz;
-    struct tm *tmCpuTime = localtime(&cpuTime);
+    struct tm* tmCpuTime = localtime(&cpuTime);
     if (!isPPS || (!aOption && !uOption && !xOption)) { // ttop이거나 pps에서 옵션이 없을 경우
         sprintf(proc.time, "%02d:%02d:%02d", tmCpuTime->tm_hour, tmCpuTime->tm_min, tmCpuTime->tm_sec);
-    } else {
+    }
+    else {
         sprintf(proc.time, "%1d:%02d", tmCpuTime->tm_min, tmCpuTime->tm_sec);
     }
 
@@ -204,12 +213,12 @@ void add_proc_list(char path[1024], unsigned long cpuTimeTable[999999]) {
 }
 
 void get_procpath(unsigned long cpuTimeTable[999999]) {
-    DIR *dirPtr;
+    DIR* dirPtr;
     if ((dirPtr = opendir("/proc")) == NULL) { // /proc 디렉터리 open
         fprintf(stderr, "dirp error for /proc\n");
         exit(1);
     }
-    struct dirent *dentryPtr;
+    struct dirent* dentryPtr;
     while ((dentryPtr = readdir(dirPtr)) != NULL) { // /proc 디렉터리 내 하위 파일들 탐색 시작
         if (dentryPtr->d_type != DT_DIR) // 디렉터리가 아닐 경우 skip
             continue;

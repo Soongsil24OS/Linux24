@@ -21,7 +21,7 @@
 
 unsigned long uptime;			//os 부팅 후 지난 시간이 저장될 변수 - 민석
 unsigned long beforeUptime = 0;	//직전 부팅 이후 지난 시각 - 민석
-long double beforeTicks[CPUTicks] = {0, };	//이전의 cpu ticks 저장하기 위한 배열 - 민석
+long double beforeTicks[CPUTicks] = { 0, };	//이전의 cpu ticks 저장하기 위한 배열 - 민석
 unsigned long memTotal;			//전체 물리 메모리 크기
 unsigned int hertz;	 			//os의 hertz값이 저장된 변수 - 민석 [구현 필요]
 
@@ -73,22 +73,22 @@ unsigned int hertz;	 			//os의 hertz값이 저장된 변수 - 민석 [구현 �
 
 /*  ***********************프로세스 구조체**************************/
 typedef struct {
-    unsigned long pid;
-    unsigned long uid;
-    char user[UNAME_LEN];
-    long double cpu;
-    long double mem;
-    unsigned long vsz;
-    unsigned long rss;
-    unsigned long shr;
-    int priority;
-    int nice;
-    char tty[TTY_LEN];
-    char stat[STAT_LEN];
-    char start[TIME_LEN];
-    char time[TIME_LEN];
-    char cmd[CMD_LEN];
-    char command[CMD_LEN];
+	unsigned long pid;
+	unsigned long uid;
+	char user[UNAME_LEN];
+	long double cpu;
+	long double mem;
+	unsigned long vsz;
+	unsigned long rss;
+	unsigned long shr;
+	int priority;
+	int nice;
+	char tty[TTY_LEN];
+	char stat[STAT_LEN];
+	char start[TIME_LEN];
+	char time[TIME_LEN];
+	char cmd[CMD_LEN];
+	char command[CMD_LEN];
 } myProc;
 
 
@@ -197,7 +197,7 @@ void search_proc(bool isPPS, bool aOption, bool uOption, bool xOption, unsigned 
 
 		if(!S_ISDIR(statbuf.st_mode))	//디렉터리가 아닐 경우 skip
 			continue;
-		
+
 		int len = strlen(dentry->d_name);
 		bool isPid = true;
 		for(int i = 0; i < len; i++){	//디렉터리가 PID인지 찾기
@@ -313,34 +313,34 @@ void getTTY(char path[PATH_LEN], char tty[TTY_LEN])
 // /proc/uptime에서 OS 부팅 후 지난 시간 얻는 함수
 unsigned long get_uptime(void)
 {
-    FILE *fp;
-    char buf[BUFFER_SIZE];
-    long double time;
+	FILE *fp;
+	char buf[BUFFER_SIZE];
+	long double time;
 
 	memset(buf, '\0', BUFFER_SIZE);
 
-    if ((fp = fopen(UPTIME, "r")) == NULL){	// /proc/uptime open
+	if ((fp = fopen(UPTIME, "r")) == NULL){	// /proc/uptime open
 		fprintf(stderr, "fopen error for %s\n", UPTIME);
-        exit(1);
-    }
-    fgets(buf, BUFFER_SIZE, fp);
-    sscanf(buf, "%Lf", &time);	// /proc/uptime의 첫번째 double 읽기
-    fclose(fp);
+		exit(1);
+	}
+	fgets(buf, BUFFER_SIZE, fp);
+	sscanf(buf, "%Lf", &time);	// /proc/uptime의 첫번째 double 읽기
+	fclose(fp);
 
-    return (unsigned long)time;
+	return (unsigned long)time;
 }
 
 // /proc/meminfo에서 전체 물리 메모리 크기 얻는 함수
 unsigned long get_mem_total(void)
 {
-    FILE *fp;
-    char buf[BUFFER_SIZE];
+	FILE *fp;
+	char buf[BUFFER_SIZE];
 	unsigned long memTotal;
 
-    if ((fp = fopen(MEMINFO, "r")) == NULL){	// /proc/meminfo open
+	if ((fp = fopen(MEMINFO, "r")) == NULL){	// /proc/meminfo open
 		fprintf(stderr, "fopen error for %s\n", MEMINFO);
-        exit(1);
-    }
+		exit(1);
+	}
 	int i = 0;
 	while(i < MEMINFO_MEM_TOTAL_ROW){	// memTotal read
 		memset(buf, '\0', BUFFER_SIZE);
@@ -349,12 +349,12 @@ unsigned long get_mem_total(void)
 	}
 	char *ptr = buf;
 	while(!isdigit(*ptr)) ptr++;
-    sscanf(ptr, "%lu", &memTotal);	// /proc/meminfo의 1행에서 memTotal read
-    fclose(fp);
+	sscanf(ptr, "%lu", &memTotal);	// /proc/meminfo의 1행에서 memTotal read
+	fclose(fp);
 
 	memTotal = kib_to_kb(memTotal);	//Kib 단위를 Kb로 변환
 
-    return memTotal;
+	return memTotal;
 }
 */
 
