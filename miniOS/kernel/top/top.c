@@ -43,7 +43,7 @@ void print_top(void){
 
 
     /*5. 출력*/
-	mvprintw(TOP_ROW, 0, "%sup %s, %d users, load average: %4.2Lf, %4.2Lf, %4.2Lf", nowStr, upStr, users, loadAvg[0], loadAvg[1], loadAvg[2]);
+	mvprintw(TOP_ROW, 0, "%sup %s, load average: %4.2Lf, %4.2Lf, %4.2Lf", nowStr, upStr, loadAvg[0], loadAvg[1], loadAvg[2]);
 
 
 
@@ -283,5 +283,4 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-//
 //
