@@ -15,7 +15,7 @@
 #include <errno.h>
 #include <ncurses.h> // ncurses
 #include <sys/sysinfo.h>
-
+// git test 1
 #define CPUTicks 8
 #define BUFFER_SIZE 1024
 
