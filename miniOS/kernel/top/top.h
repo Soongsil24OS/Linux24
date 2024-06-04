@@ -1,12 +1,9 @@
 /*  ***********************Include source**************************/
 // include 이유와 사용부분, 이름을 꼭 ! 기입해주세요.
 #include <stdio.h>
-<<<<<<< HEAD
 #include <string.h> // str을 읽어오기 위해 include 2행 - 지수
-=======
 #include <stdlib.h>
 #include <string.h>
->>>>>>> 8ca88d3c8b853004ec3f00ec075b6bf4ede155c9
 #include <math.h> // isnan 사용하기 위해 include - 3행, 민석
 #include <ctype.h> // isdigit 사용하기 위해 include - 3행, 민석
 #include <curses.h> // mvprintw 사용하기 위해 include - 3행, 민석
@@ -45,7 +42,7 @@ unsigned int hertz;	 			//os의 hertz값이 저장된 변수 - 민석 [구현 �
 #define CPU_row 2
 #define b 3
 #define c 4
-<<<<<<< HEAD
+
 #define TASK_ROW 1		//process state를 출력하고자하는 행 - 지수
 
 /*  ***********************프로세스 구조체**************************/

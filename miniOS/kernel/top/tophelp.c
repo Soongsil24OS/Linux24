@@ -181,7 +181,6 @@ void add_proc_list(char path[1024], unsigned long cpuTimeTable[999999]) {
     return;
 }
 
-=======
 myProc procList[999999]; // assuming a large enough array for demonstration
 int procCnt = 0;
 
@@ -391,7 +390,6 @@ void add_proc_list(char path[1024], unsigned long cpuTimeTable[999999]) {
     return;
 }
 
->>>>>>> 8ca88d3c8b853004ec3f00ec075b6bf4ede155c9
 void get_procpath(unsigned long cpuTimeTable[999999]) {
     DIR* dirPtr;
     if ((dirPtr = opendir("/proc")) == NULL) { // /proc 디렉터리 open
