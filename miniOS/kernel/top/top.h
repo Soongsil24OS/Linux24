@@ -97,7 +97,7 @@ typedef struct {
 
 
 
-
+/*
 time_t before;
 time_t now;
 
@@ -356,5 +356,5 @@ unsigned long get_mem_total(void)
 
     return memTotal;
 }
-
+*/
 
