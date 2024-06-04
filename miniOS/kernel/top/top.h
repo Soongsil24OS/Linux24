@@ -29,6 +29,21 @@ unsigned int hertz;	 			//os의 hertz값이 저장된 변수 - 민석 [구현 �
 #define CPU_row 2
 #define b 3
 #define c 4
+
+#define COLUMN_CNT 12 //출력할 column 최대 갯수
+#define PID_IDX 0
+#define USER_IDX 1
+#define PR_IDX 2
+#define NI_IDX 3
+#define VIRT_IDX 4
+#define RES_IDX 5
+#define SHR_IDX 6
+#define S_IDX 7
+#define CPU_IDX 8
+#define MEM_IDX 9
+#define TIME_P_IDX 10
+#define COMMAND_IDX 11
+#define COLUMN_ROW 6			//column 출력할 행
 /*  ***********************프로세스 구조체**************************/
 typedef struct{
 	unsigned long pid;
