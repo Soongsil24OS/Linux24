@@ -198,12 +198,15 @@ int main(int argc, char *argv[])
 	memTotal = get_mem_total();                    // 전체 물리 메모리 크기
     hertz = (unsigned int)sysconf(_SC_CLK_TCK);    // OS의 hertz값 얻기(초당 context switching 횟수)
     now = time(NULL);   
+
     memset(cpuTimeTable, 0, sizeof(cpuTimeTable)); // CPU 시간 테이블 초기화
 
 /*프로세스 및 TTY 정보 가져오기*/
 	myPid = getpid();            // 자기 자신의 pid
+
     snprintf(pidPath, sizeof(pidPath), "/%d", myPid);
     snprintf(myPath, sizeof(myPath), "%s%s", PROC, pidPath); // 자기 자신의 /proc 경로 획득
+    
     getTTY(myPath, myTTY);       // 자기 자신의 tty 획득
     for (int i = strlen(PTS); i < strlen(myTTY); i++) {
         if (!isdigit(myTTY[i])) {
@@ -211,7 +214,6 @@ int main(int argc, char *argv[])
             break;
         }
     }
-    myUid = getuid();            // 자기 자신의 uid
 
 /*3.출력 환경 설정*/
 	initscr();				//출력 윈도우 초기화
@@ -238,6 +240,31 @@ int main(int argc, char *argv[])
 	do{						//무한 반복
 		now = time(NULL);	//현재 시각 갱신
 
+        switch(ch){			//방향키 입력 좌표 처리
+			case KEY_LEFT:
+				col--;
+				if(col < 0)
+					col = 0;
+				print = true;
+				break;
+			case KEY_RIGHT:
+				col++;
+				print = true;
+				break;
+			case KEY_UP:
+				row--;
+				if(row < 0)
+					row = 0;
+				print = true;
+				break;
+			case KEY_DOWN:
+				row++;
+				if(row > procCnt)
+					row = procCnt;
+				print = true;
+				break;
+		}
+
 		if(print || now - before >= 3){	//3초 경과 시 화면 갱신
 			erase();
 			erase_proc_list();
@@ -256,4 +283,5 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
+//
 //
