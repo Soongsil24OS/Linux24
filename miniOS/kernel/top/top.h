@@ -36,13 +36,7 @@ unsigned int hertz;	 			//os의 hertz값이 저장된 변수 - 민석 [구현 �
 #define UPTIME "/proc/uptime" // 3행
 #define MEMINFO "/proc/meminfo" // 4행
 
-#define PATH_LEN 1024
-#define UNAME_LEN 32
-#define TOKEN_LEN 32
-#define MAX_TOKEN 22				// /proc/pid/stat에서 읽어들일 token 갯수
-#define STAT_LEN 8
 #define PROCESS_MAX 4096
-#define STAT_STATE_IDX 2
 #define PID_MAX 32768				//pid 최대 갯수
 
 /*  ***********************터미널 출력을 위한 행**************************/
@@ -75,8 +69,6 @@ typedef struct{
 	
 }myProc;
 
-
-#define PROCESS_MAX 4096 //process 최대 크기 정의 - 지수
 
 /********************* 길이 설정************************/ //2행, erase 구조체에서 사용
 #define PATH_LEN 1024
@@ -128,20 +120,6 @@ typedef struct{
 #define CMD_STR "CMD"
 #define COMMAND_STR "COMMAND"
 =======
-
-#define COLUMN_CNT 12 //출력할 column 최대 갯수
-#define PID_IDX 0
-#define USER_IDX 1
-#define PR_IDX 2
-#define NI_IDX 3
-#define VIRT_IDX 4
-#define RES_IDX 5
-#define SHR_IDX 6
-#define S_IDX 7
-#define CPU_IDX 8
-#define MEM_IDX 9
-#define TIME_P_IDX 10
-#define COMMAND_IDX 11
 #define COLUMN_ROW 6			//column 출력할 행
 
 /*  *************************************************/

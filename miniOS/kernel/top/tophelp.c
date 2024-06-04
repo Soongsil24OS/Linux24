@@ -3,7 +3,6 @@
 extern myProc procList[4096];
 extern int procCnt;
 
-<<<<<<< HEAD
 //proc의 내용을 지우는 함수
 void erase_proc(myProc *proc)
 {
