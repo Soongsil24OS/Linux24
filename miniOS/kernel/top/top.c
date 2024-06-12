@@ -1,7 +1,9 @@
 #include "top.h"
 unsigned long beforeUptime = 0;
 unsigned long beforeTicks[CPUTicks] = { 0, };
-
+unsigned long memTotal = 0;
+unsigned hertz = 0;
+unsigned long uptime = 0;
 
 unsigned long cpuTimeTable[PID_MAX];
 myProc procList[PROCESS_MAX];
