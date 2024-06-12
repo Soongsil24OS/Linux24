@@ -1,85 +1,184 @@
 #include "top.h"
+#define TIME_SLICE 2
 unsigned long beforeUptime = 0;
-unsigned long beforeTicks[CPUTicks] = { 0, };
+unsigned long beforeTicks[CPUTicks] = {0,};
 unsigned long memTotal = 0;
 unsigned hertz = 0;
 unsigned long uptime = 0;
-
 unsigned long cpuTimeTable[PID_MAX];
 myProc procList[PROCESS_MAX];
 myProc *sorted[PROCESS_MAX];
 int procCnt = 0;
+bool by_cpu = true;
 
-time_t before; // cpu 사용률 계산
+time_t before; // CPU usage calculation
 time_t now;
 
-pid_t  myPid;
-uid_t  myUid;
+pid_t myPid;
+uid_t myUid;
 char myPath[PATH_LEN];
 
 int ch;
 int row, col;
 
-bool isGreater(myProc *a, myProc *b)
-{
-    if(a->cpu < b->cpu)
-    return true;
-    else if(a->cpu > b->cpu)
-    return false;
-    else{
-    if(a->pid > b->pid)
-    return true;
-    else return false;}
+bool isGreater(myProc *a, myProc *b) {
+    if (a->cpu < b->cpu)
+        return true;
+    else if (a->cpu > b->cpu)
+        return false;
+    else {
+        return a->pid > b->pid;
+    }
 }
 
-void sort_by_cpu(void)
-{
-    for(int i = 0; i < procCnt; i++)		//포인터 복사
-        sorted[i] = procList + i;
-    for(int i = procCnt - 1; i > 0; i--){
-        for(int j = 0; j < i; j++){
-            if(isGreater(sorted[j], sorted[j+1])){
+void sort_processes(bool by_cpu) {
+    // Copy pointers
+    for (int i = 0; i < procCnt; i++)
+        sorted[i] = &procList[i];
+
+    // Bubble sort
+    for (int i = procCnt - 1; i > 0; i--) {
+        for (int j = 0; j < i; j++) {
+            bool should_swap = false;
+
+            if (by_cpu) {
+                // Compare by CPU usage
+                should_swap = isGreater(sorted[j], sorted[j + 1]);
+            } else {
+                // Compare by PID
+                should_swap = sorted[j]->pid > sorted[j + 1]->pid;
+            }
+
+            if (should_swap) {
                 myProc *tmp = sorted[j];
-                sorted[j] = sorted[j+1];
-                sorted[j+1] = tmp;
+                sorted[j] = sorted[j + 1];
+                sorted[j + 1] = tmp;
             }
         }
     }
-    return;
 }
 
-/* --------------------printtop()--------------start */
+void print_column_headers(int startCol, int endCol, int col, int *startX, int *columnWidth) {
+    for (int i = startCol; i < endCol; i++) {
+        if (i == col) { // Highlight the current column
+            attron(A_REVERSE);
+        }
+
+        // Print the text for each column
+        switch (i) {
+            case PID_IDX:
+                mvprintw(COLUMN_ROW, startX[PID_IDX], "%*s", columnWidth[PID_IDX], PID_STR);
+                break;
+            case PR_IDX:
+                mvprintw(COLUMN_ROW, startX[PR_IDX], "%*s", columnWidth[PR_IDX], PR_STR);
+                break;
+            case NI_IDX:
+                mvprintw(COLUMN_ROW, startX[NI_IDX], "%*s", columnWidth[NI_IDX], NI_STR);
+                break;
+            case VIRT_IDX:
+                mvprintw(COLUMN_ROW, startX[VIRT_IDX], "%*s", columnWidth[VIRT_IDX], VIRT_STR);
+                break;
+            case RES_IDX:
+                mvprintw(COLUMN_ROW, startX[RES_IDX], "%*s", columnWidth[RES_IDX], RES_STR);
+                break;
+            case SHR_IDX:
+                mvprintw(COLUMN_ROW, startX[SHR_IDX], "%*s", columnWidth[SHR_IDX], SHR_STR);
+                break;
+            case S_IDX:
+                mvprintw(COLUMN_ROW, startX[S_IDX], "%s", S_STR);
+                break;
+            case CPU_IDX:
+                mvprintw(COLUMN_ROW, startX[CPU_IDX], "%*s", columnWidth[CPU_IDX], CPU_STR);
+                break;
+            case MEM_IDX:
+                mvprintw(COLUMN_ROW, startX[MEM_IDX], "%*s", columnWidth[MEM_IDX], MEM_STR);
+                break;
+            case TIME_P_IDX:
+                mvprintw(COLUMN_ROW, startX[TIME_P_IDX], "%*s", columnWidth[TIME_P_IDX], TIME_P_STR);
+                break;
+            case COMMAND_IDX:
+                mvprintw(COLUMN_ROW, startX[COMMAND_IDX], "%s", COMMAND_STR);
+                break;
+        }
+
+        if (i == col) { // Remove the highlight from the current column
+            attroff(A_REVERSE);
+        }
+    }
+}
+
+void roundRobinScheduling(myProc sorted[], int procCnt) {
+    initscr(); // Initialize ncurses
+    noecho();  // Do not echo input characters
+    curs_set(FALSE); // Do not display the cursor
+    timeout(0); // Non-blocking input
+
+    int time_passed = 0;
+    while (1) {
+        for (int i = 0; i < procCnt; i++) {
+            // Clear the screen
+            clear();
+
+            // Display process info
+            mvprintw(0, 0, "PID: %lu", sorted[i].pid);
+            mvprintw(1, 0, "User: %s", sorted[i].user);
+            mvprintw(2, 0, "CPU Usage: %.2Lf", sorted[i].cpu);
+            mvprintw(3, 0, "Memory Usage: %.2Lf", sorted[i].mem);
+            mvprintw(4, 0, "Command: %s", sorted[i].command);
+            mvprintw(5, 0, "Time Slice: %d", TIME_SLICE);
+            mvprintw(6, 0, "Time Passed: %d", time_passed);
+            mvprintw(7, 0, "Press 'q' to quit.");
+
+            // Refresh to show changes
+            refresh();
+
+            // Check if 'q' is pressed
+            int ch = getch();
+            if (ch == 'q') {
+                endwin(); // End ncurses mode
+                return;
+            }
+
+            // Sleep for the time slice duration
+            sleep(TIME_SLICE);
+
+            // Increment time passed
+            time_passed += TIME_SLICE;
+        }
+    }
+
+    endwin(); // End ncurses mode
+}
+
 void print_top(void) {
-
-    /*1. Uptime 가져오기*/
-    time_t uptime;
-    uptime = get_uptime();			//os 부팅 후 지난 시각
+    /*1. Get Uptime */
+    time_t uptime = get_uptime(); // Time since the system boot
     char buf[BUFFER_SIZE];
-    /*****	1행 UPTIME 출력	*****/
-    /*2. 현재 시각 문자열 생성*/
-    char nowStr[128] = { 0 };       // 현재 시각 문자열을 초기화
-    time_t now = time(NULL);      // 현재 시각을 얻기
-    struct tm* tmNow = localtime(&now);  // 현재 시각을 struct tm으로 변환
 
-    // 현재 시각을 "top - HH:MM:SS " 형식으로 nowStr에 저장
+    /* 1st row: Print UPTIME */
+    /*2. Create a string for the current time */
+    char nowStr[128] = {0}; // Initialize the string for the current time
+    time_t now = time(NULL); // Get the current time
+    struct tm *tmNow = localtime(&now); // Convert the current time to struct tm
+
+    // Save the current time in the format "top - HH:MM:SS " in nowStr
     strftime(nowStr, sizeof(nowStr), "top - %H:%M:%S ", tmNow);
 
-    /*3. Uptime 문자열 생성*/
-    struct tm* tmUptime = localtime(&uptime);
+    /*3. Create an uptime
+        string */
+    struct tm *tmUptime = localtime(&uptime);
 
-    char upStr[128] = { 0 };  // uptime 문자열 초기화
+    char upStr[128] = {0}; // Initialize the uptime string
     if (uptime < 60 * 60) {
         snprintf(upStr, sizeof(upStr), "%2d min", tmUptime->tm_min);
-    }
-    else if (uptime < 60 * 60 * 24) {
+    } else if (uptime < 60 * 60 * 24) {
         snprintf(upStr, sizeof(upStr), "%2d:%02d", tmUptime->tm_hour, tmUptime->tm_min);
-    }
-    else {
+    } else {
         snprintf(upStr, sizeof(upStr), "%3d days, %02d:%02d", tmUptime->tm_yday, tmUptime->tm_hour, tmUptime->tm_min);
     }
 
-    /* 4. Load Average 가져오기 */
-    FILE* loadAvgFp;
+    /* 4. Get Load Average */
+    FILE *loadAvgFp;
     long double loadAvg[3];
     if ((loadAvgFp = fopen(LOADAVG, "r")) == NULL) {
         fprintf(stderr, "fopen error for %s\n", LOADAVG);
@@ -91,65 +190,58 @@ void print_top(void) {
     }
     fclose(loadAvgFp);
 
-
-    /*5. 출력*/
+    /*5. Print */
     mvprintw(TOP_ROW, 0, "%sup %s, load average: %4.2Lf, %4.2Lf, %4.2Lf", nowStr, upStr, loadAvg[0], loadAvg[1], loadAvg[2]);
 
-    /* 2행-------------------------------------------------------------------------- */
+    /* 2nd row */
     unsigned int total = 0, running = 0, sleeping = 0, stopped = 0, zombie = 0, uninterruptible_sleep = 0, tracedORstopped = 0;
     total = procCnt;
     for (int i = 0; i < procCnt; i++) {
-        if (!strcmp(procList[i].stat, "R")) //실행 중인 프로세스
+        if (!strcmp(procList[i].stat, "R")) // Running process
             running++;
-        else if (!strcmp(procList[i].stat, "D")) //불가피하게 대기 중인 프로세스
+        else if (!strcmp(procList[i].stat, "D")) // Uninterruptible sleep process
             uninterruptible_sleep++;
-        else if (!strcmp(procList[i].stat, "S")) //대기 중인 프로세스
+        else if (!strcmp(procList[i].stat, "S")) // Sleeping process
             sleeping++;
-        else if (!strcmp(procList[i].stat, "T")) //정지된 프로세스
+        else if (!strcmp(procList[i].stat, "T")) // Stopped process
             stopped++;
-        else if (!strcmp(procList[i].stat, "t")) //추적 중인 프로세스 또는 멈춤 상태인 프로세스
+        else if (!strcmp(procList[i].stat, "t")) // Traced or stopped process
             tracedORstopped++;
-        else if (!strcmp(procList[i].stat, "Z")) //좀비 상태인 프로세스
+        else if (!strcmp(procList[i].stat, "Z")) // Zombie process
             zombie++;
     }
 
     mvprintw(TASK_ROW, 0, "Tasks:  %4u total,  %4u running, %4u uninterruptible_sleep, %4u sleeping,  %4u stopped, %4u tracedORstopped, %4u zombie", total, running, uninterruptible_sleep, sleeping, stopped, tracedORstopped, zombie);
 
-
-
-    hertz = (unsigned int)sysconf(_SC_CLK_TCK);	//os의 hertz값 얻기(초당 context switching 횟수)
-    char buffer[BUFFER_SIZE]; // 0행
+    hertz = (unsigned int)sysconf(_SC_CLK_TCK); // Get the hertz value of the OS (context switching per second)
+    char buffer[BUFFER_SIZE]; // 0th row
     uptime = get_uptime();
 
-    /* 3행-------------------------------------------------------------------------- */
-    char* CPUptr;
-
-    FILE* cpuStatFP;
+    /* 3rd row */
+    char *CPUptr;
+    FILE *cpuStatFP;
     if ((cpuStatFP = fopen(CPUSTAT, "r")) == NULL) {
-        fprintf(stderr, "CPU 사용 관련 파일 ( %s ) 을 읽어오는데 실패했습니다.\n", CPUSTAT);
+        fprintf(stderr, "Failed to read CPU usage file (%s).\n", CPUSTAT);
         exit(1);
     }
     memset(buffer, '\0', BUFFER_SIZE);
-    fgets(buffer, BUFFER_SIZE, cpuStatFP); // CPU 정보를 읽어오기
+    fgets(buffer, BUFFER_SIZE, cpuStatFP); // Read CPU information
     fclose(cpuStatFP);
 
     CPUptr = buffer;
-    while (!isdigit(*CPUptr)) CPUptr++; // isdigit으로 숫자 찾기
+    while (!isdigit(*CPUptr)) CPUptr++; // Find the digit
 
-    long double ticks[CPUTicks] = { 0.0, };
-    sscanf(CPUptr, "%Lf %Lf %Lf %Lf %Lf %Lf %Lf %Lf",
-           &ticks[0], &ticks[1], &ticks[2], &ticks[3], &ticks[4], &ticks[5], &ticks[6], &ticks[7]);
-
+    long double ticks[CPUTicks] = {0.0,};
+    sscanf(CPUptr, "%Lf %Lf %Lf %Lf %Lf %Lf %Lf %Lf", &ticks[0], &ticks[1], &ticks[2], &ticks[3], &ticks[4], &ticks[5], &ticks[6], &ticks[7]);
     unsigned long nowTicks = 0;
-    long double results[CPUTicks] = { 0.0, };
+    long double results[CPUTicks] = {0.0,};
 
     if (beforeUptime == 0) {
         nowTicks = uptime * hertz;
         for (int i = 0; i < CPUTicks; i++) {
             results[i] = ticks[i];
         }
-    }
-    else {
+    } else {
         nowTicks = (uptime - beforeUptime) * hertz;
         for (int i = 0; i < CPUTicks; i++) {
             results[i] = ticks[i] - beforeTicks[i];
@@ -170,427 +262,278 @@ void print_top(void) {
     for (int i = 0; i < CPUTicks; i++)
         beforeTicks[i] = ticks[i];
 
-    /* 4행-------------------------------------------------------------------------- */
-    char* MEMptr;
+    /* 4th row */
+    char *MEMptr;
     unsigned long memTotal, memFree, memUsed, memAvailable, buffers, cached;
 
-    FILE* meminfoFP;
-
+    FILE *meminfoFP;
     if ((meminfoFP = fopen(MEMINFO, "r")) == NULL) {
-        fprintf(stderr, "MEM 사용 관련 파일 ( %s ) 을 읽어오는데 실패했습니다.\n", MEMINFO);
+        fprintf(stderr, "Failed to read memory usage file (%s).\n", MEMINFO);
         exit(1);
     }
 
-    /* ---------------------------------------------------------------------------- */
-    memset(buffer, '\0', BUFFER_SIZE);
     fgets(buffer, BUFFER_SIZE, meminfoFP);
-
-
     MEMptr = buffer;
-    while (!isdigit(*MEMptr)) {
-        MEMptr++;
-    }
+    while (!isdigit(*MEMptr)) MEMptr++;
     sscanf(MEMptr, "%lu", &memTotal);
-    /* ---------------------------------------------------------------------------- */
-    memset(buffer, '\0', BUFFER_SIZE);
-    fgets(buffer, BUFFER_SIZE, meminfoFP);
 
+    fgets(buffer, BUFFER_SIZE, meminfoFP);
     MEMptr = buffer;
-    while (!isdigit(*MEMptr)) {
-        MEMptr++;
-    }
+    while (!isdigit(*MEMptr)) MEMptr++;
     sscanf(MEMptr, "%lu", &memFree);
-    /* ---------------------------------------------------------------------------- */
-    memset(buffer, '\0', BUFFER_SIZE);
-    fgets(buffer, BUFFER_SIZE, meminfoFP);
 
+    fgets(buffer, BUFFER_SIZE, meminfoFP);
     MEMptr = buffer;
-    while (!isdigit(*MEMptr)) {
-        MEMptr++;
-    }
+    while (!isdigit(*MEMptr)) MEMptr++;
     sscanf(MEMptr, "%lu", &memAvailable);
-    /* ---------------------------------------------------------------------------- */
-    memset(buffer, '\0', BUFFER_SIZE);
-    fgets(buffer, BUFFER_SIZE, meminfoFP);
 
+    fgets(buffer, BUFFER_SIZE, meminfoFP);
     MEMptr = buffer;
-    while (!isdigit(*MEMptr)) {
-        MEMptr++;
-    }
+    while (!isdigit(*MEMptr)) MEMptr++;
     sscanf(MEMptr, "%lu", &buffers);
-    /* ---------------------------------------------------------------------------- */
-    memset(buffer, '\0', BUFFER_SIZE);
+
     fgets(buffer, BUFFER_SIZE, meminfoFP);
-
     MEMptr = buffer;
-    while (!isdigit(*MEMptr)) {
-        MEMptr++;
-    }
+    while (!isdigit(*MEMptr)) MEMptr++;
     sscanf(MEMptr, "%lu", &cached);
-    /* ---------------------------------------------------------------------------- */
 
-    memUsed = memTotal - memFree - buffers - cached; // 사용 메모리 구하기
+    memUsed = memTotal - memFree - buffers - cached; // Calculate used memory
 
-    mvprintw(MEM_ROW, 0, "Kib Mem : %8lu total,  %8lu free,  %8lu used,  %8lu buff/cache", memTotal, memFree, memUsed, buffers + cached); // 출력
+    mvprintw(MEM_ROW, 0, "Kib Mem : %8lu total,  %8lu free,  %8lu used,  %8lu buff/cache", memTotal, memFree, memUsed, buffers + cached); // Print
 
     fclose(meminfoFP);
-    int columnWidth[COLUMN_CNT] = {					//column의 x축 길이 저장하는 배열
-		strlen(PID_STR), strlen(PR_STR), strlen(NI_STR),
-		strlen(VIRT_STR), strlen(RES_STR), strlen(SHR_STR), strlen(S_STR),
-		strlen(CPU_STR), strlen(MEM_STR), strlen(TIME_P_STR), strlen(COMMAND_STR) };
 
-	for(int i = 0; i < procCnt; i++){			//PID 최대 길이 저장
-		sprintf(buf, "%lu", procList[i].pid);
-		if(columnWidth[PID_IDX] < strlen(buf))
-			columnWidth[PID_IDX] = strlen(buf);
-	}
+    int columnWidth[COLUMN_CNT] = {
+        strlen(PID_STR), strlen(PR_STR), strlen(NI_STR),
+        strlen(VIRT_STR), strlen(RES_STR), strlen(SHR_STR), strlen(S_STR),
+        strlen(CPU_STR), strlen(MEM_STR), strlen(TIME_P_STR), strlen(COMMAND_STR)
+    };
 
-	for(int i = 0; i < procCnt; i++){			//PR 최대 길이 저장
-		sprintf(buf, "%d", procList[i].priority);
-		if(columnWidth[PR_IDX] < strlen(buf))
-			columnWidth[PR_IDX] = strlen(buf);
-	}
-
-	for(int i = 0; i < procCnt; i++){			//NI 최대 길이 저장
-		sprintf(buf, "%d", procList[i].nice);
-		if(columnWidth[NI_IDX] < strlen(buf))
-			columnWidth[NI_IDX] = strlen(buf);
-	}
-
-	for(int i = 0; i < procCnt; i++){			//VIRT 최대 길이 저장
-		sprintf(buf, "%lu", procList[i].vsz);
-		if(columnWidth[VIRT_IDX] < strlen(buf))
-			columnWidth[VIRT_IDX] = strlen(buf);
-	}
-
-	for(int i = 0; i < procCnt; i++){			//RES 최대 길이 저장
-		sprintf(buf, "%lu", procList[i].rss);
-		if(columnWidth[RES_IDX] < strlen(buf))
-			columnWidth[RES_IDX] = strlen(buf);
-	}
-
-	for(int i = 0; i < procCnt; i++){			//SHR 최대 길이 저장
-		sprintf(buf, "%lu", procList[i].shr);
-		if(columnWidth[SHR_IDX] < strlen(buf))
-			columnWidth[SHR_IDX] = strlen(buf);
-	}
-
-	for(int i = 0; i < procCnt; i++){			//S 최대 길이 저장
-		if(columnWidth[S_IDX] < strlen(procList[i].stat))
-			columnWidth[S_IDX] = strlen(procList[i].stat);
-	}
-
-
-	for(int i = 0; i < procCnt; i++){			//CPU 최대 길이 저장
-		sprintf(buf, "%3.1Lf", procList[i].cpu);
-		if(columnWidth[CPU_IDX] < strlen(buf))
-			columnWidth[CPU_IDX] = strlen(buf);
-	}
-
-	for(int i = 0; i < procCnt; i++){			//MEM 최대 길이 저장
-		sprintf(buf, "%3.1Lf", procList[i].mem);
-		if(columnWidth[MEM_IDX] < strlen(buf))
-			columnWidth[MEM_IDX] = strlen(buf);
-	}
-
-	for(int i = 0; i < procCnt; i++){			//TIME 최대 길이 저장
-		if(columnWidth[TIME_P_IDX] < strlen(procList[i].time))
-			columnWidth[TIME_P_IDX] = strlen(procList[i].time);
-	}
-
-	for(int i = 0; i < procCnt; i++){			//COMMAND 최대 길이 저장
-		if(columnWidth[COMMAND_IDX] < strlen(procList[i].command))
-			columnWidth[COMMAND_IDX] = strlen(procList[i].command);
-	}
-
-    int startX[COLUMN_CNT] = {0, };				//각 column의 시작 x좌표
-
-    int startCol = 0, endCol = 0;
-    int maxCmd = -1;							//COMMAND 출력 가능한 최대 길이
-
-	if(col >= COLUMN_CNT - 1){					//COMMAND COLUMN만 출력하는 경우 (우측 화살표 많이 누른 경우)
-		startCol = COMMAND_IDX;                 //col: 사용자가 선택한 열의 인덱스
-		endCol = COLUMN_CNT;
-		maxCmd = COLS;							//COMMAND 터미널 너비만큼 출력 가능, COLS: 현재 사용 중인 터미널 창의 가로 길이
-	}
-	else{
-		int i;
-		for(i = col + 1; i < COLUMN_CNT; i++){
-			startX[i] = columnWidth[i-1] + 2 + startX[i-1];
-			if(startX[i] >= COLS){				//COLUMN의 시작이 이미 터미널 너비 초과한 경우
-				endCol = i;
-				break;
-			}
-		}
-		startCol = col;
-		if(i == COLUMN_CNT){
-			endCol = COLUMN_CNT;					//COLUMN 전부 출력하는 경우
-			maxCmd = COLS - startX[COMMAND_IDX];	//COMMAND 최대 출력 길이: COMMAND 터미널 너비 - COMMAND 시작 x좌표
-		}
-	}
-    /*****      6행 column 출력 시작   *****/
-
-    attron(A_REVERSE);
-    for(int i = 0; i < COLS; i++)
-        mvprintw(COLUMN_ROW, i, " ");
-
-    int gap = 0;
-
-    //PID 출력
-    if(startCol <= PID_IDX && PID_IDX < endCol){
-        gap = columnWidth[PID_IDX] - strlen(PID_STR);   //PID의 길이 차 구함
-        mvprintw(COLUMN_ROW, startX[PID_IDX] + gap, "%s", PID_STR);   //우측 정렬
+    for (int i = 0; i < procCnt; i++) {
+        sprintf(buf, "%lu", procList[i].pid);
+        if (columnWidth[PID_IDX] < strlen(buf))
+            columnWidth[PID_IDX] = strlen(buf);
     }
 
-    //PR 출력
-    if(startCol <= PR_IDX && PR_IDX < endCol){
-        gap = columnWidth[PR_IDX] - strlen(PR_STR);      //PR 의 길이 차 구함
-        mvprintw(COLUMN_ROW, startX[PR_IDX] + gap, "%s", PR_STR);   //우측 정렬
+    for (int i = 0; i < procCnt; i++) {
+        sprintf(buf, "%d", procList[i].priority);
+        if (columnWidth[PR_IDX] < strlen(buf))
+            columnWidth[PR_IDX] = strlen(buf);
     }
 
-    //NI 출력
-    if(startCol <= NI_IDX && NI_IDX < endCol){
-        gap = columnWidth[NI_IDX] - strlen(NI_STR);      //NI 의 길이 차 구함
-        mvprintw(COLUMN_ROW, startX[NI_IDX] + gap, "%s", NI_STR);   //우측 정렬
+    for (int i = 0; i < procCnt; i++) {
+        sprintf(buf, "%d", procList[i].nice);
+        if (columnWidth[NI_IDX] < strlen(buf))
+            columnWidth[NI_IDX] = strlen(buf);
     }
 
-    //VIRT 출력
-    if(startCol <= VIRT_IDX && VIRT_IDX < endCol){
-        gap = columnWidth[VIRT_IDX] - strlen(VIRT_STR);   //VSZ의 길이 차 구함
-        mvprintw(COLUMN_ROW, startX[VIRT_IDX] + gap, "%s", VIRT_STR);   //우측 정렬
+    for (int i = 0; i < procCnt; i++) {
+        sprintf(buf, "%lu", procList[i].vsz);
+        if (columnWidth[VIRT_IDX] < strlen(buf))
+            columnWidth[VIRT_IDX] = strlen(buf);
     }
 
-    //RES 출력
-    if(startCol <= RES_IDX && RES_IDX < endCol){
-        gap = columnWidth[RES_IDX] - strlen(RES_STR);   //RSS의 길이 차 구함
-        mvprintw(COLUMN_ROW, startX[RES_IDX] + gap, "%s", RES_STR);   //우측 정렬
+    for (int i = 0; i < procCnt; i++) {
+        sprintf(buf, "%lu", procList[i].rss);
+        if (columnWidth[RES_IDX] < strlen(buf))
+            columnWidth[RES_IDX] = strlen(buf);
     }
 
-    //SHR 출력
-    if(startCol <= SHR_IDX && SHR_IDX < endCol){
-        gap = columnWidth[SHR_IDX] - strlen(SHR_STR);   //SHR의 길이 차 구함
-        mvprintw(COLUMN_ROW, startX[SHR_IDX] + gap, "%s", SHR_STR);   //우측 정렬
+    for (int i = 0; i < procCnt; i++) {
+        sprintf(buf, "%lu", procList[i].shr);
+        if (columnWidth[SHR_IDX] < strlen(buf))
+            columnWidth[SHR_IDX] = strlen(buf);
     }
 
-    //S 출력
-    if(startCol <= S_IDX && S_IDX < endCol){
-        mvprintw(COLUMN_ROW, startX[S_IDX], "%s", S_STR);   //우측 정렬
+    for (int i = 0; i < procCnt; i++) {
+        if (columnWidth[S_IDX] < strlen(procList[i].stat))
+            columnWidth[S_IDX] = strlen(procList[i].stat);
+    }
+    for (int i = 0; i < procCnt; i++) {
+    sprintf(buf, "%3.1Lf", procList[i].cpu);
+    if (columnWidth[CPU_IDX] < strlen(buf))
+        columnWidth[CPU_IDX] = strlen(buf);
     }
 
-    //%CPU 출력
-    if(startCol <= CPU_IDX && CPU_IDX < endCol){
-        gap = columnWidth[CPU_IDX] - strlen(CPU_STR);   //CPU의 길이 차 구함
-        mvprintw(COLUMN_ROW, startX[CPU_IDX] + gap, "%s", CPU_STR);   //우측 정렬
+    for (int i = 0; i < procCnt; i++) {
+        sprintf(buf, "%3.1Lf", procList[i].mem);
+        if (columnWidth[MEM_IDX] < strlen(buf))
+            columnWidth[MEM_IDX] = strlen(buf);
     }
 
-    //%MEM 출력
-    if(startCol <= MEM_IDX && MEM_IDX < endCol){
-        gap = columnWidth[MEM_IDX] - strlen(MEM_STR);   //MEM의 길이 차 구함
-        mvprintw(COLUMN_ROW, startX[MEM_IDX] + gap, "%s", MEM_STR);   //우측 정렬
+    for (int i = 0; i < procCnt; i++) {
+        if (columnWidth[TIME_P_IDX] < strlen(procList[i].time))
+            columnWidth[TIME_P_IDX] = strlen(procList[i].time);
     }
 
-    //TIME+ 출력
-    if(startCol <= TIME_P_IDX && TIME_P_IDX < endCol){
-        gap = columnWidth[TIME_P_IDX] - strlen(TIME_P_STR);   //TIME의 길이 차 구함
-        mvprintw(COLUMN_ROW, startX[TIME_P_IDX] + gap, "%s", TIME_P_STR);   //우측 정렬
+    for (int i = 0; i < procCnt; i++) {
+        if (columnWidth[COMMAND_IDX] < strlen(procList[i].command))
+            columnWidth[COMMAND_IDX] = strlen(procList[i].command);
     }
 
-    //COMMAND 출력
-    mvprintw(COLUMN_ROW, startX[COMMAND_IDX], "%s", COMMAND_STR);   //좌측 정렬
+    int startX[COLUMN_CNT] = {0};
+    for (int i = 1; i < COLUMN_CNT; i++) {
+        startX[i] = startX[i - 1] + columnWidth[i - 1] + 2;
+    }
 
-    attroff(A_REVERSE);
+    int startCol = 0;
+    int endCol = COLUMN_CNT;
+    int maxCmd = COLS - startX[COMMAND_IDX];
 
-    /*****      column 출력 종료   *****/
+    print_column_headers(startCol, endCol, col, startX, columnWidth);
 
-	/*****		process 출력 시작	*****/
-
-	char token[TOKEN_LEN];
-	memset(token, '\0', TOKEN_LEN); //문자열을 저장할 임시 배열 'token'을 초기화
-	for(int i = row; i < procCnt; i++){
-    int gap = 0;
-		//PID 출력
-		if(startCol <= PID_IDX && PID_IDX < endCol){
-			memset(token, '\0', TOKEN_LEN);
-			sprintf(token, "%lu", sorted[i]->pid);
-			gap = columnWidth[PID_IDX] - strlen(token);	//PID의 길이 차 구함
-			mvprintw(COLUMN_ROW+1+i-row, startX[PID_IDX]+gap, "%s", token);	//우측 정렬
-		}
-
-		//PR 출력
-		if(startCol <= PR_IDX && PR_IDX < endCol){
-			memset(token, '\0', TOKEN_LEN);
-			sprintf(token, "%d", sorted[i]->priority);
-			gap = columnWidth[PR_IDX] - strlen(token);	//PR의 길이 차 구함
-			mvprintw(COLUMN_ROW+1+i-row, startX[PR_IDX]+gap, "%s", token);	//우측 정렬
-		}
-
-		//NI 출력
-		if(startCol <= NI_IDX && NI_IDX < endCol){
-			memset(token, '\0', TOKEN_LEN);
-			sprintf(token, "%d", sorted[i]->nice);
-			gap = columnWidth[NI_IDX] - strlen(token);	//NI의 길이 차 구함
-			mvprintw(COLUMN_ROW+1+i-row, startX[NI_IDX]+gap, "%s", token);	//우측 정렬
-		}
-
-		//VIRT 출력
-		if(startCol <= VIRT_IDX && VIRT_IDX < endCol){
-			memset(token, '\0', TOKEN_LEN);
-			sprintf(token, "%lu", sorted[i]->vsz);
-			gap = columnWidth[VIRT_IDX] - strlen(token);	//VIRT의 길이 차 구함
-			mvprintw(COLUMN_ROW+1+i-row, startX[VIRT_IDX]+gap, "%s", token);	//우측 정렬
-		}
-
-		//RES 출력
-		if(startCol <= RES_IDX && RES_IDX < endCol){
-			memset(token, '\0', TOKEN_LEN);
-			sprintf(token, "%lu", sorted[i]->rss);
-			gap = columnWidth[RES_IDX] - strlen(token);	//RES의 길이 차 구함
-			mvprintw(COLUMN_ROW+1+i-row, startX[RES_IDX]+gap, "%s", token);	//우측 정렬
-		}
-
-		//SHR 출력
-		if(startCol <= SHR_IDX && SHR_IDX < endCol){
-			memset(token, '\0', TOKEN_LEN);
-			sprintf(token, "%lu", sorted[i]->shr);
-			gap = columnWidth[SHR_IDX] - strlen(token);	//SHR의 길이 차 구함
-			mvprintw(COLUMN_ROW+1+i-row, startX[SHR_IDX]+gap, "%s", token);	//우측 정렬
-		}
-
-		//S 출력
-		if(startCol <= S_IDX && S_IDX < endCol){
-			gap = columnWidth[S_IDX] - strlen(sorted[i]->stat);	//S의 길이 차 구함
-			mvprintw(COLUMN_ROW+1+i-row, startX[S_IDX], "%s", sorted[i]->stat);	//좌측 정렬
-		}
-
-		//%CPU 출력
-		if(startCol <= CPU_IDX && CPU_IDX < endCol){
-			memset(token, '\0', TOKEN_LEN);
-			sprintf(token, "%3.1Lf", sorted[i]->cpu);
-			gap = columnWidth[CPU_IDX] - strlen(token);	//CPU의 길이 차 구함
-			mvprintw(COLUMN_ROW+1+i-row, startX[CPU_IDX]+gap, "%s", token);	//우측 정렬
-		}
-
-		//%MEM 출력
-		if(startCol <= MEM_IDX && MEM_IDX < endCol){
-			memset(token, '\0', TOKEN_LEN);
-			sprintf(token, "%3.1Lf", sorted[i]->mem);
-			gap = columnWidth[MEM_IDX] - strlen(token);	//MEM의 길이 차 구함
-			mvprintw(COLUMN_ROW+1+i-row, startX[MEM_IDX]+gap, "%s", token);	//우측 정렬
-		}
-
-		//TIME+ 출력
-		if(startCol <= TIME_P_IDX && TIME_P_IDX < endCol){
-			gap = columnWidth[TIME_P_IDX] - strlen(sorted[i]->time);	//TIME의 길이 차 구함
-			mvprintw(COLUMN_ROW+1+i-row, startX[TIME_P_IDX]+gap, "%s", sorted[i]->time);	//우측 정렬
-		}
-
-		//COMMAND 출력
-		int tap = col - COMMAND_IDX;
-		if((col == COMMAND_IDX) && (strlen(sorted[i]->command) < tap*TAB_WIDTH))		//COMMAND를 출력할 수 없는 경우
-			continue;
-		if(col < COLUMN_CNT - 1)	//다른 column도 함께 출력하는 경우
-			tap = 0;
-		sorted[i]->cmd[maxCmd] = '\0';
-		mvprintw(COLUMN_ROW+1+i-row, startX[COMMAND_IDX], "%s", sorted[i]->cmd + tap*TAB_WIDTH);	//좌측 정렬
-
-	}
-}
-
-	/*****		process 출력 종료	*****/
-/* --------------------printtop()----------------end */
-
-void update_cpu(void)
-{
-    return;
-}
-
-// 화면 출력을 모두 초기화하는 함수
-void clear_scr(void)
-{
-    for (int i = 0; i < LINES; i++) {
-        move(i, 0);          // 커서를 각 줄의 처음으로 이동
-        for (int j = 0; j < COLS; j++) {
-            addch(' ');
+    char token[TOKEN_LEN];
+    memset(token, '\0', TOKEN_LEN);
+    for (int i = row; i < procCnt; i++) {
+        int gap = 0;
+        if (startCol <= PID_IDX && PID_IDX < endCol) {
+            sprintf(token, "%lu", sorted[i]->pid);
+            gap = columnWidth[PID_IDX] - strlen(token);
+            mvprintw(COLUMN_ROW + 1 + i - row, startX[PID_IDX] + gap, "%s", token);
         }
+
+        if (startCol <= PR_IDX && PR_IDX < endCol) {
+            sprintf(token, "%d", sorted[i]->priority);
+            gap = columnWidth[PR_IDX] - strlen(token);
+            mvprintw(COLUMN_ROW + 1 + i - row, startX[PR_IDX] + gap, "%s", token);
+        }
+
+        if (startCol <= NI_IDX && NI_IDX < endCol) {
+            sprintf(token, "%d", sorted[i]->nice);
+            gap = columnWidth[NI_IDX] - strlen(token);
+            mvprintw(COLUMN_ROW + 1 + i - row, startX[NI_IDX] + gap, "%s", token);
+        }
+
+        if (startCol <= VIRT_IDX && VIRT_IDX < endCol) {
+            sprintf(token, "%lu", sorted[i]->vsz);
+            gap = columnWidth[VIRT_IDX] - strlen(token);
+            mvprintw(COLUMN_ROW + 1 + i - row, startX[VIRT_IDX] + gap, "%s", token);
+        }
+
+        if (startCol <= RES_IDX && RES_IDX < endCol) {
+            sprintf(token, "%lu", sorted[i]->rss);
+            gap = columnWidth[RES_IDX] - strlen(token);
+            mvprintw(COLUMN_ROW + 1 + i - row, startX[RES_IDX] + gap, "%s", token);
+        }
+
+        if (startCol <= SHR_IDX && SHR_IDX < endCol) {
+            sprintf(token, "%lu", sorted[i]->shr);
+            gap = columnWidth[SHR_IDX] - strlen(token);
+            mvprintw(COLUMN_ROW + 1 + i - row, startX[SHR_IDX] + gap, "%s", token);
+        }
+
+        if (startCol <= S_IDX && S_IDX < endCol) {
+            gap = columnWidth[S_IDX] - strlen(sorted[i]->stat);
+            mvprintw(COLUMN_ROW + 1 + i - row, startX[S_IDX], "%s", sorted[i]->stat);
+        }
+
+        if (startCol <= CPU_IDX && CPU_IDX < endCol) {
+            sprintf(token, "%3.1Lf", sorted[i]->cpu);
+            gap = columnWidth[CPU_IDX] - strlen(token);
+            mvprintw(COLUMN_ROW + 1 + i - row, startX[CPU_IDX] + gap, "%s", token);
+        }
+
+        if (startCol <= MEM_IDX && MEM_IDX < endCol) {
+            sprintf(token, "%3.1Lf", sorted[i]->mem);
+            gap = columnWidth[MEM_IDX] - strlen(token);
+            mvprintw(COLUMN_ROW + 1 + i - row, startX[MEM_IDX] + gap, "%s", token);
+        }
+
+        if (startCol <= TIME_P_IDX && TIME_P_IDX < endCol) {
+            gap = columnWidth[TIME_P_IDX] - strlen(sorted[i]->time);
+            mvprintw(COLUMN_ROW + 1 + i - row, startX[TIME_P_IDX] + gap, "%s", sorted[i]->time);
+        }
+
+        int tap = col - COMMAND_IDX;
+        if (col == COMMAND_IDX && strlen(sorted[i]->command) < tap * TAB_WIDTH) {
+            continue;
+        }
+        if (col < COLUMN_CNT - 1) {
+            tap = 0;
+        }
+        sorted[i]->cmd[maxCmd] = '\0';
+        mvprintw(COLUMN_ROW + 1 + i - row, startX[COMMAND_IDX], "%s", sorted[i]->cmd + tap * TAB_WIDTH);
     }
-    return;
 }
 
-void top(void)
-{
+void top(void) {
     bool print = false;
-    /*1.메모리 및 시스템 정보 초기화*/
-
-    memTotal = get_mem_total();                    // 전체 물리 메모리 크기
-    hertz = (unsigned int)sysconf(_SC_CLK_TCK);    // OS의 hertz값 얻기(초당 context switching 횟수)
+    memTotal = get_mem_total(); // Total physical memory size
+    hertz = (unsigned int)sysconf(_SC_CLK_TCK); // OS’s hertz value (context switching per second)
     now = time(NULL);
-    memset(cpuTimeTable, 0, sizeof(cpuTimeTable)); // CPU 시간 테이블 초기화
-
-    /*프로세스 정보 가져오기*/
-    myPid = getpid();            // 자기 자신의 pid
+    memset(cpuTimeTable, 0, sizeof(cpuTimeTable)); // Initialize CPU time table
+    /* Get process information */
+    myPid = getpid(); // Get own PID
     char pidPath[128];
-    memset(pidPath, '\0', 128);
     snprintf(pidPath, sizeof(pidPath), "/%d", myPid);
 
-    /*3.출력 환경 설정*/
-    initscr();				//출력 윈도우 초기화
-    halfdelay(10);			//0.1초마다 입력 새로 갱신
-    noecho();				//echo 제거
-    keypad(stdscr, TRUE);	//특수 키 입력 허용
-    curs_set(0);			//curser invisible
+    /* Set up display environment */
+    initscr(); // Initialize the screen
+    halfdelay(10); // Refresh input every 0.1 seconds
+    noecho(); // Disable echo
+    keypad(stdscr, TRUE); // Enable special key input
+    curs_set(0); // Make cursor invisible
 
-    /*4.프로세스 정보 초기화 및 첫 출력*/
+    /* Initialize process information and first print */
     get_procPath(cpuTimeTable);
     row = 0;
     col = 0;
     ch = 0;
     before = time(NULL);
 
-    sort_by_cpu();			//cpu 순으로 정렬
-    print_top();			//초기 출력
+    sort_processes(by_cpu); // Sort by CPU usage
+    print_top(); // Initial print
     refresh();
 
-    /*5.무한 루프를 통한 주기적 화면 갱신*/
-    do {						//무한 반복
-        now = time(NULL);	//현재 시각 갱신
+    /* Infinite loop for periodic screen updates */
+    do {
+        now = time(NULL); // Update current time
 
-        switch (ch) {			//방향키 입력 좌표 처리
-        case KEY_LEFT:
-            col--;
-            if (col < 0)
-                col = 0;
-            print = true;
-            break;
-        case KEY_RIGHT:
-            col++;
-            print = true;
-            break;
-        case KEY_UP:
-            row--;
-            if (row < 0)
-                row = 0;
-            print = true;
-            break;
-        case KEY_DOWN:
-            row++;
-            if (row > procCnt)
-                row = procCnt;
-            print = true;
-            break;
+        switch (ch) {
+            case KEY_LEFT:
+                col--;
+                if (col < 0)
+                    col = 0;
+                print = true;
+                break;
+            case KEY_RIGHT:
+                col++;
+                if (col >= COLUMN_CNT)
+                    col = COLUMN_CNT - 1;
+                print = true;
+                break;
+            case '\n': // Enter key
+            case KEY_ENTER:
+                if(col == 0){
+                    by_cpu = false;
+                    print = true;}
+                if(col == 7)
+                    roundRobinScheduling(sorted, procCnt);
+                break;
         }
 
-        if (print || now - before >= 3) {	//3초 경과 시 화면 갱신
+        if (print || now - before >= 3) { // Refresh screen every 3 seconds
             erase();
             erase_proc_list();
             get_procPath(cpuTimeTable);
-            sort_by_cpu();			//cpu 순으로 정렬
+            sort_processes(by_cpu); // Sort by CPU usage
             print_top();
             refresh();
             before = now;
             print = false;
         }
 
-    } while ((ch = getch()) != 'q');	//q 입력 시 종료
+    } while ((ch = getch()) != 'q'); // Exit on 'q' key press
 
     endwin();
+}
+
+
+void clear_scr(void) {
+    for (int i = 0; i < LINES; i++) {
+        move(i, 0); // Move the cursor to the start of each line
+    for (int j = 0; j < COLS; j++) {
+        addch(' ');
+        }
+    }
 }
