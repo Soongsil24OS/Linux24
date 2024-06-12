@@ -3,7 +3,7 @@ CC=gcc
 CFLAGS=-Wall -g -Iinclude
 
 # Linker flags
-LDFLAGS=-lreadline -lncurses
+LDFLAGS=-lreadline -lncurses -lm
 
 # The build target executable:
 TARGET=minios

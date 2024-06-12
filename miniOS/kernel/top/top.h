@@ -19,8 +19,6 @@
 #define CPUTicks 8
 #define BUFFER_SIZE 1024
 	//이전의 cpu ticks 저장하기 위한 배열 - 민석
-unsigned long memTotal;			//전체 물리 메모리 크기
-unsigned int hertz;	 			//os의 hertz값이 저장된 변수 - 민석 [구현 필요]
 
 /*  ***********************경로 모음**************************/
 #define PROC "/proc"				// /proc 절대 경로
@@ -65,7 +63,6 @@ typedef struct {
 
 /*  ***********************함수 정의**************************/
 void add_proc_list(char path[1024], unsigned long cpuTimeTable[8192]);
-unsigned long uptime;			//os 부팅 후 지난 시간이 저장될 변수 - 민석
 extern unsigned long get_uptime(void);
 extern unsigned long kib_to_kb(unsigned long kib);
 extern unsigned long get_mem_total(void);
