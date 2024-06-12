@@ -3,8 +3,8 @@
 #include <string.h>
 #include <readline/readline.h>
 #include <readline/history.h>
-
 #include "system.h"
+#include "test.h"
 
 void print_minios(char* str);
 
@@ -23,6 +23,10 @@ int main() {
 
         if (strcmp(input,"minisystem") == 0){
             minisystem();
+        }
+
+        if (strcmp(input,"top") == 0){
+            top();
         }
         
         else system(input);
