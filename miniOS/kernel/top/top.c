@@ -1,13 +1,59 @@
-#include "top.h" // push test js
+#include "top.h"
+unsigned long beforeUptime = 0;
+unsigned long beforeTicks[CPUTicks] = { 0, };
+
+
+unsigned long cpuTimeTable[PID_MAX];
+myProc procList[PROCESS_MAX];
+myProc *sorted[PROCESS_MAX];
+int procCnt = 0;
+
+time_t before; // cpu 사용률 계산
+time_t now;
+
+pid_t  myPid;
+uid_t  myUid;
+char myPath[PATH_LEN];
+
+int ch;
+int row, col;
+
+bool isGreater(myProc *a, myProc *b)
+{
+    if(a->cpu < b->cpu)
+    return true;
+    else if(a->cpu > b->cpu)
+    return false;
+    else{
+    if(a->pid > b->pid)
+    return true;
+    else return false;}
+}
+
+void sort_by_cpu(void)
+{
+    for(int i = 0; i < procCnt; i++)		//포인터 복사
+        sorted[i] = procList + i;
+    for(int i = procCnt - 1; i > 0; i--){
+        for(int j = 0; j < i; j++){
+            if(isGreater(sorted[j], sorted[j+1])){
+                myProc *tmp = sorted[j];
+                sorted[j] = sorted[j+1];
+                sorted[j+1] = tmp;
+            }
+        }
+    }
+    return;
+}
 
 /* --------------------printtop()--------------start */
 void print_top(void) {
+
     /*1. Uptime 가져오기*/
+    time_t uptime;
     uptime = get_uptime();			//os 부팅 후 지난 시각
     char buf[BUFFER_SIZE];
-
     /*****	1행 UPTIME 출력	*****/
-
     /*2. 현재 시각 문자열 생성*/
     char nowStr[128] = { 0 };       // 현재 시각 문자열을 초기화
     time_t now = time(NULL);      // 현재 시각을 얻기
@@ -48,7 +94,6 @@ void print_top(void) {
     mvprintw(TOP_ROW, 0, "%sup %s, load average: %4.2Lf, %4.2Lf, %4.2Lf", nowStr, upStr, loadAvg[0], loadAvg[1], loadAvg[2]);
 
     /* 2행-------------------------------------------------------------------------- */
-    add_proc_list(PROC, true);
     unsigned int total = 0, running = 0, sleeping = 0, stopped = 0, zombie = 0, uninterruptible_sleep = 0, tracedORstopped = 0;
     total = procCnt;
     for (int i = 0; i < procCnt; i++) {
@@ -74,33 +119,8 @@ void print_top(void) {
     char buffer[BUFFER_SIZE]; // 0행
     uptime = get_uptime();
 
-/*2행*/
-int procCnt = 0;               // 외부 정의 및 초기화
-// 파일이 성공적으로 열린 경우에만 아래의 코드 실행    
-void calculate_and_print_stats() {
-    unsigned int total = 0, running = 0, sleeping = 0, stopped = 0, zombie = 0, uninterruptible_sleep=0, tracedORstopped=0;
-    total = procCnt;
-    for(int i = 0; i < procCnt; i++){
-        if(!strcmp(procList[i].stat, "R")) //실행 중인 프로세스
-            running++;
-        else if(!strcmp(procList[i].stat, "D")) //불가피하게 대기 중인 프로세스
-            uninterruptible_sleep++;
-        else if(!strcmp(procList[i].stat, "S")) //대기 중인 프로세스
-            sleeping++;
-        else if(!strcmp(procList[i].stat, "T")) //정지된 프로세스
-            stopped++;
-        else if(!strcmp(procList[i].stat, "t")) //추적 중인 프로세스 또는 멈춤 상태인 프로세스
-            tracedORstopped++;
-        else if(!strcmp(procList[i].stat, "Z")) //좀비 상태인 프로세스
-            zombie++;
-    }
-
-    mvprintw(TASK_ROW, 0, "Tasks:  %4u total,  %4u running, %4u uninterruptible_sleep, %4u sleeping,  %4u stopped, %4u tracedORstopped, %4u zombie", total, running, uninterruptible_sleep, sleeping, stopped, tracedORstopped, zombie);
-}
-
     /* 3행-------------------------------------------------------------------------- */
     char* CPUptr;
-    long double us, sy, ni, id, wa, hi, se, st;
 
     FILE* cpuStatFP;
     if ((cpuStatFP = fopen(CPUSTAT, "r")) == NULL) {
@@ -108,43 +128,41 @@ void calculate_and_print_stats() {
         exit(1);
     }
     memset(buffer, '\0', BUFFER_SIZE);
+    fgets(buffer, BUFFER_SIZE, cpuStatFP); // CPU 정보를 읽어오기
     fclose(cpuStatFP);
 
     CPUptr = buffer;
+    while (!isdigit(*CPUptr)) CPUptr++; // isdigit으로 숫자 찾기
 
-    while (!isdigit(*CPUptr)) CPUptr++;
+    long double ticks[CPUTicks] = { 0.0, };
+    sscanf(CPUptr, "%Lf %Lf %Lf %Lf %Lf %Lf %Lf %Lf",
+           &ticks[0], &ticks[1], &ticks[2], &ticks[3], &ticks[4], &ticks[5], &ticks[6], &ticks[7]);
 
-    long double ticks[CPUTicks] = { 0.0, }; // 배열을 0.0 으로 초기화
-    sscanf(CPUptr, "%Lf%Lf%Lf%Lf%Lf%Lf%Lf%Lf",
-        &ticks[0], &ticks[1], &ticks[2], &ticks[3], &ticks[4], &ticks[5], &ticks[6], &ticks[7]);
-
-    //sscanf를 사용해 CPUptr에서 읽은 값들을 각 Ticks의 주소에 저장한다.
-
-    unsigned long nowTicks = 0; // 현재 틱을 계산할 변수이다.
-    long double results[CPUTicks] = { 0.0, }; // 결과를 출력할 results 배열을 0.0으로 초기화한다.
+    unsigned long nowTicks = 0;
+    long double results[CPUTicks] = { 0.0, };
 
     if (beforeUptime == 0) {
-        nowTicks = uptime * hertz; // doit) uptime과 hertz 구해주는 함수 만들어야함.
+        nowTicks = uptime * hertz;
         for (int i = 0; i < CPUTicks; i++) {
-            results[i] = ticks[i]; // 아까 CPUptr을 통해 저장한 ticks를 불러옴.
+            results[i] = ticks[i];
         }
     }
     else {
         nowTicks = (uptime - beforeUptime) * hertz;
         for (int i = 0; i < CPUTicks; i++) {
-            results[i] = ticks[i] - beforeTicks[i]; // 최초실행과 달리 이전 ticks를 빼서 출력해야 한다.
+            results[i] = ticks[i] - beforeTicks[i];
         }
     }
 
     for (int i = 0; i < CPUTicks; i++) {
-        results[i] = (results[i] / nowTicks) * 100; // 퍼센트로 구하기. 뭘 구할까? results 배열의 ticks value를 현재 실행된 ticks로 나누고, 100을 곱하면 해당 results 배열의 ticks 수가 전체 ticks 수 중 몇 % 정도 차지하는 지 알 수 있다.
+        results[i] = (results[i] / nowTicks) * 100;
         if (isnan(results[i]) || isinf(results[i])) {
             results[i] = 0;
         }
     }
 
-    mvprintw(CPU_row, 0, "%%Cpu(s):  %4.1Lf us, %4.1Lf sy, %4.1Lf ni, %4.1Lf id, %4.1Lf wa, %4.1Lf hi, %4.1Lf si, %4.1Lf st",
-        results[0], results[2], results[1], results[3], results[4], results[5], results[6], results[7]);
+    mvprintw(CPU_ROW, 0, "%%Cpu(s):  %4.1Lf us, %4.1Lf sy, %4.1Lf ni, %4.1Lf id, %4.1Lf wa, %4.1Lf hi, %4.1Lf si, %4.1Lf st",
+             results[0], results[1], results[2], results[3], results[4], results[5], results[6], results[7]);
 
     beforeUptime = uptime;
     for (int i = 0; i < CPUTicks; i++)
@@ -156,16 +174,15 @@ void calculate_and_print_stats() {
 
     FILE* meminfoFP;
 
-    if ((meminfoFP = fopen(MEMINFO, "r") == NULL)) {
+    if ((meminfoFP = fopen(MEMINFO, "r")) == NULL) {
         fprintf(stderr, "MEM 사용 관련 파일 ( %s ) 을 읽어오는데 실패했습니다.\n", MEMINFO);
         exit(1);
     }
 
-    int i = 0;
     /* ---------------------------------------------------------------------------- */
     memset(buffer, '\0', BUFFER_SIZE);
     fgets(buffer, BUFFER_SIZE, meminfoFP);
-    i++;
+
 
     MEMptr = buffer;
     while (!isdigit(*MEMptr)) {
@@ -175,7 +192,6 @@ void calculate_and_print_stats() {
     /* ---------------------------------------------------------------------------- */
     memset(buffer, '\0', BUFFER_SIZE);
     fgets(buffer, BUFFER_SIZE, meminfoFP);
-    i++;
 
     MEMptr = buffer;
     while (!isdigit(*MEMptr)) {
@@ -185,7 +201,6 @@ void calculate_and_print_stats() {
     /* ---------------------------------------------------------------------------- */
     memset(buffer, '\0', BUFFER_SIZE);
     fgets(buffer, BUFFER_SIZE, meminfoFP);
-    i++;
 
     MEMptr = buffer;
     while (!isdigit(*MEMptr)) {
@@ -195,7 +210,6 @@ void calculate_and_print_stats() {
     /* ---------------------------------------------------------------------------- */
     memset(buffer, '\0', BUFFER_SIZE);
     fgets(buffer, BUFFER_SIZE, meminfoFP);
-    i++;
 
     MEMptr = buffer;
     while (!isdigit(*MEMptr)) {
@@ -205,7 +219,6 @@ void calculate_and_print_stats() {
     /* ---------------------------------------------------------------------------- */
     memset(buffer, '\0', BUFFER_SIZE);
     fgets(buffer, BUFFER_SIZE, meminfoFP);
-    i++;
 
     MEMptr = buffer;
     while (!isdigit(*MEMptr)) {
@@ -216,7 +229,7 @@ void calculate_and_print_stats() {
 
     memUsed = memTotal - memFree - buffers - cached; // 사용 메모리 구하기
 
-    mvprintw(MEM_row, 0, "Kib Mem : %8lu total,  %8lu free,  %8lu used,  %8lu buff/cache", memTotal, memFree, memUsed, buffers + cached); // 출력
+    mvprintw(MEM_ROW, 0, "Kib Mem : %8lu total,  %8lu free,  %8lu used,  %8lu buff/cache", memTotal, memFree, memUsed, buffers + cached); // 출력
 
     fclose(meminfoFP);
     int columnWidth[COLUMN_CNT] = {					//column의 x축 길이 저장하는 배열
@@ -288,10 +301,10 @@ void calculate_and_print_stats() {
 			columnWidth[COMMAND_IDX] = strlen(procList[i].command);
 	}
 
-int startX[COLUMN_CNT] = {0, };				//각 column의 시작 x좌표
+    int startX[COLUMN_CNT] = {0, };				//각 column의 시작 x좌표
 
-int startCol = 0, endCol = 0;
-int maxCmd = -1;							//COMMAND 출력 가능한 최대 길이
+    int startCol = 0, endCol = 0;
+    int maxCmd = -1;							//COMMAND 출력 가능한 최대 길이
 
 	if(col >= COLUMN_CNT - 1){					//COMMAND COLUMN만 출력하는 경우 (우측 화살표 많이 누른 경우)
 		startCol = COMMAND_IDX;                 //col: 사용자가 선택한 열의 인덱스
@@ -313,15 +326,86 @@ int maxCmd = -1;							//COMMAND 출력 가능한 최대 길이
 			maxCmd = COLS - startX[COMMAND_IDX];	//COMMAND 최대 출력 길이: COMMAND 터미널 너비 - COMMAND 시작 x좌표
 		}
 	}
+    /*****      6행 column 출력 시작   *****/
 
+    attron(A_REVERSE);
+    for(int i = 0; i < COLS; i++)
+        mvprintw(COLUMN_ROW, i, " ");
 
-	/*****		process 출력 시작	*****/ 
+    int gap = 0;
+
+    //PID 출력
+    if(startCol <= PID_IDX && PID_IDX < endCol){
+        gap = columnWidth[PID_IDX] - strlen(PID_STR);   //PID의 길이 차 구함
+        mvprintw(COLUMN_ROW, startX[PID_IDX] + gap, "%s", PID_STR);   //우측 정렬
+    }
+
+    //PR 출력
+    if(startCol <= PR_IDX && PR_IDX < endCol){
+        gap = columnWidth[PR_IDX] - strlen(PR_STR);      //PR 의 길이 차 구함
+        mvprintw(COLUMN_ROW, startX[PR_IDX] + gap, "%s", PR_STR);   //우측 정렬
+    }
+
+    //NI 출력
+    if(startCol <= NI_IDX && NI_IDX < endCol){
+        gap = columnWidth[NI_IDX] - strlen(NI_STR);      //NI 의 길이 차 구함
+        mvprintw(COLUMN_ROW, startX[NI_IDX] + gap, "%s", NI_STR);   //우측 정렬
+    }
+
+    //VIRT 출력
+    if(startCol <= VIRT_IDX && VIRT_IDX < endCol){
+        gap = columnWidth[VIRT_IDX] - strlen(VIRT_STR);   //VSZ의 길이 차 구함
+        mvprintw(COLUMN_ROW, startX[VIRT_IDX] + gap, "%s", VIRT_STR);   //우측 정렬
+    }
+
+    //RES 출력
+    if(startCol <= RES_IDX && RES_IDX < endCol){
+        gap = columnWidth[RES_IDX] - strlen(RES_STR);   //RSS의 길이 차 구함
+        mvprintw(COLUMN_ROW, startX[RES_IDX] + gap, "%s", RES_STR);   //우측 정렬
+    }
+
+    //SHR 출력
+    if(startCol <= SHR_IDX && SHR_IDX < endCol){
+        gap = columnWidth[SHR_IDX] - strlen(SHR_STR);   //SHR의 길이 차 구함
+        mvprintw(COLUMN_ROW, startX[SHR_IDX] + gap, "%s", SHR_STR);   //우측 정렬
+    }
+
+    //S 출력
+    if(startCol <= S_IDX && S_IDX < endCol){
+        mvprintw(COLUMN_ROW, startX[S_IDX], "%s", S_STR);   //우측 정렬
+    }
+
+    //%CPU 출력
+    if(startCol <= CPU_IDX && CPU_IDX < endCol){
+        gap = columnWidth[CPU_IDX] - strlen(CPU_STR);   //CPU의 길이 차 구함
+        mvprintw(COLUMN_ROW, startX[CPU_IDX] + gap, "%s", CPU_STR);   //우측 정렬
+    }
+
+    //%MEM 출력
+    if(startCol <= MEM_IDX && MEM_IDX < endCol){
+        gap = columnWidth[MEM_IDX] - strlen(MEM_STR);   //MEM의 길이 차 구함
+        mvprintw(COLUMN_ROW, startX[MEM_IDX] + gap, "%s", MEM_STR);   //우측 정렬
+    }
+
+    //TIME+ 출력
+    if(startCol <= TIME_P_IDX && TIME_P_IDX < endCol){
+        gap = columnWidth[TIME_P_IDX] - strlen(TIME_P_STR);   //TIME의 길이 차 구함
+        mvprintw(COLUMN_ROW, startX[TIME_P_IDX] + gap, "%s", TIME_P_STR);   //우측 정렬
+    }
+
+    //COMMAND 출력
+    mvprintw(COLUMN_ROW, startX[COMMAND_IDX], "%s", COMMAND_STR);   //좌측 정렬
+
+    attroff(A_REVERSE);
+
+    /*****      column 출력 종료   *****/
+
+	/*****		process 출력 시작	*****/
 
 	char token[TOKEN_LEN];
 	memset(token, '\0', TOKEN_LEN); //문자열을 저장할 임시 배열 'token'을 초기화
-
 	for(int i = row; i < procCnt; i++){
-
+    int gap = 0;
 		//PID 출력
 		if(startCol <= PID_IDX && PID_IDX < endCol){
 			memset(token, '\0', TOKEN_LEN);
@@ -413,8 +497,6 @@ int maxCmd = -1;							//COMMAND 출력 가능한 최대 길이
 	/*****		process 출력 종료	*****/
 /* --------------------printtop()----------------end */
 
-
-
 void update_cpu(void)
 {
     return;
@@ -432,29 +514,21 @@ void clear_scr(void)
     return;
 }
 
-
-int main(int argc, char* argv[])
+void top(void)
 {
+    bool print = false;
     /*1.메모리 및 시스템 정보 초기화*/
+
     memTotal = get_mem_total();                    // 전체 물리 메모리 크기
     hertz = (unsigned int)sysconf(_SC_CLK_TCK);    // OS의 hertz값 얻기(초당 context switching 횟수)
     now = time(NULL);
-
     memset(cpuTimeTable, 0, sizeof(cpuTimeTable)); // CPU 시간 테이블 초기화
 
-    /*프로세스 및 TTY 정보 가져오기*/
+    /*프로세스 정보 가져오기*/
     myPid = getpid();            // 자기 자신의 pid
-
+    char pidPath[128];
+    memset(pidPath, '\0', 128);
     snprintf(pidPath, sizeof(pidPath), "/%d", myPid);
-    snprintf(myPath, sizeof(myPath), "%s%s", PROC, pidPath); // 자기 자신의 /proc 경로 획득
-
-    getTTY(myPath, myTTY);       // 자기 자신의 tty 획득
-    for (int i = strlen(PTS); i < strlen(myTTY); i++) {
-        if (!isdigit(myTTY[i])) {
-            myTTY[i] = '\0';
-            break;
-        }
-    }
 
     /*3.출력 환경 설정*/
     initscr();				//출력 윈도우 초기화
@@ -464,17 +538,14 @@ int main(int argc, char* argv[])
     curs_set(0);			//curser invisible
 
     /*4.프로세스 정보 초기화 및 첫 출력*/
-    search_proc(false, false, false, false, cpuTimeTable);
-
+    get_procPath(cpuTimeTable);
     row = 0;
     col = 0;
-
     ch = 0;
-
     before = time(NULL);
 
     sort_by_cpu();			//cpu 순으로 정렬
-    print_ttop();			//초기 출력
+    print_top();			//초기 출력
     refresh();
 
     /*5.무한 루프를 통한 주기적 화면 갱신*/
@@ -509,9 +580,9 @@ int main(int argc, char* argv[])
         if (print || now - before >= 3) {	//3초 경과 시 화면 갱신
             erase();
             erase_proc_list();
-            search_proc(false, false, false, false, cpuTimeTable);
+            get_procPath(cpuTimeTable);
             sort_by_cpu();			//cpu 순으로 정렬
-            print_ttop();
+            print_top();
             refresh();
             before = now;
             print = false;
@@ -520,6 +591,4 @@ int main(int argc, char* argv[])
     } while ((ch = getch()) != 'q');	//q 입력 시 종료
 
     endwin();
-
-    return 0;
 }
