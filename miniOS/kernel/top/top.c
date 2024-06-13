@@ -107,24 +107,26 @@ void print_column_headers(int startCol, int endCol, int col, int *startX, int *c
     }
 }
 
-void roundRobinScheduling(myProc sorted[], int procCnt) {
+void roundRobinScheduling() {
     initscr(); // Initialize ncurses
     noecho();  // Do not echo input characters
     curs_set(FALSE); // Do not display the cursor
     timeout(0); // Non-blocking input
 
     int time_passed = 0;
+    get_procPath(cpuTimeTable);
+    for (int i = 0; i < procCnt; i++)
+        sorted[i] = &procList[i];
     while (1) {
         for (int i = 0; i < procCnt; i++) {
             // Clear the screen
             clear();
-
             // Display process info
-            mvprintw(0, 0, "PID: %lu", sorted[i].pid);
-            mvprintw(1, 0, "User: %s", sorted[i].user);
-            mvprintw(2, 0, "CPU Usage: %.2Lf", sorted[i].cpu);
-            mvprintw(3, 0, "Memory Usage: %.2Lf", sorted[i].mem);
-            mvprintw(4, 0, "Command: %s", sorted[i].command);
+            mvprintw(0, 0, "PID: %lu", sorted[i]->pid);
+            mvprintw(1, 0, "User: %s", sorted[i]->user);
+            mvprintw(2, 0, "CPU Usage: %.2Lf", sorted[i]->cpu);
+            mvprintw(3, 0, "Memory Usage: %.2Lf", sorted[i]->mem);
+            mvprintw(4, 0, "Command: %s", sorted[i]->command);
             mvprintw(5, 0, "Time Slice: %d", TIME_SLICE);
             mvprintw(6, 0, "Time Passed: %d", time_passed);
             mvprintw(7, 0, "Press 'q' to quit.");
@@ -424,7 +426,7 @@ void print_top(void) {
 
         if (startCol <= S_IDX && S_IDX < endCol) {
             gap = columnWidth[S_IDX] - strlen(sorted[i]->stat);
-            mvprintw(COLUMN_ROW + 1 + i - row, startX[S_IDX], "%s", sorted[i]->stat);
+            mvprintw(COLUMN_ROW + 1 + i - row, startX[S_IDX], "%s", token);
         }
 
         if (startCol <= CPU_IDX && CPU_IDX < endCol) {
@@ -508,7 +510,7 @@ void top(void) {
                     by_cpu = false;
                     print = true;}
                 if(col == 7)
-                    roundRobinScheduling(sorted, procCnt);
+                    roundRobinScheduling();
                 break;
         }
 
